@@ -1,12 +1,22 @@
 // Gym Tracker - Main Application Logic
 class GymTracker {
     constructor() {
-        this.workouts = JSON.parse(localStorage.getItem('gymWorkouts')) || [];
-        this.supplements = JSON.parse(localStorage.getItem('gymSupplements')) || this.getDefaultSupplements();
-        this.settings = JSON.parse(localStorage.getItem('gymSettings')) || this.getDefaultSettings();
+        this.currentUser = localStorage.getItem('gymTrackerCurrentUser') || 'default';
+        this.loadUserData();
         this.currentWorkout = null;
         this.timerInterval = null;
         this.init();
+    }
+
+    loadUserData() {
+        const userDataKey = `gymTracker_${this.currentUser}`;
+        const userData = JSON.parse(localStorage.getItem(userDataKey)) || {};
+        
+        this.workouts = userData.workouts || [];
+        this.supplements = userData.supplements || this.getDefaultSupplements();
+        this.settings = userData.settings || this.getDefaultSettings();
+        this.currentStreak = userData.currentStreak || 0;
+        this.achievements = userData.achievements || [];
     }
 
     init() {
@@ -291,6 +301,8 @@ class GymTracker {
             }
         }
         
+        this.currentStreak = streak;
+        this.saveData();
         return streak;
     }
 
@@ -494,18 +506,46 @@ class GymTracker {
     }
 
     saveData() {
-        localStorage.setItem('gymWorkouts', JSON.stringify(this.workouts));
-        localStorage.setItem('gymSupplements', JSON.stringify(this.supplements));
-        localStorage.setItem('gymSettings', JSON.stringify(this.settings));
+        const userDataKey = `gymTracker_${this.currentUser}`;
+        const userData = {
+            workouts: this.workouts,
+            supplements: this.supplements,
+            settings: this.settings,
+            currentStreak: this.currentStreak,
+            achievements: this.achievements,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        localStorage.setItem(userDataKey, JSON.stringify(userData));
+        
+        // Also save to global settings for current user
+        localStorage.setItem('gymTrackerCurrentUser', this.currentUser);
     }
 
     loadData() {
         this.resetDailySupplements();
         this.updateStats();
         this.renderSupplements();
+        this.updateUserDisplay();
         
         if (document.getElementById('calendarHeatmap')) {
             this.renderAnalytics();
+        }
+    }
+
+    updateUserDisplay() {
+        const userNameElement = document.getElementById('userName');
+        if (userNameElement) {
+            const users = JSON.parse(localStorage.getItem('gymTrackerUsers')) || {};
+            const currentUserData = users[this.currentUser];
+            
+            if (currentUserData) {
+                userNameElement.textContent = `${currentUserData.firstName} ${currentUserData.avatar.emoji}`;
+            } else if (this.currentUser.startsWith('guest_')) {
+                userNameElement.textContent = `Guest ${this.currentUser.split('_')[1].slice(-4)} 👤`;
+            } else {
+                userNameElement.textContent = 'User 👤';
+            }
         }
     }
 
@@ -543,6 +583,14 @@ let gymTracker;
 document.addEventListener('DOMContentLoaded', () => {
     gymTracker = new GymTracker();
 });
+
+// Logout functionality
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('gymTrackerCurrentUser');
+        window.location.href = 'login.html';
+    }
+}
 
 // Add CSS custom properties for theming
 document.documentElement.style.setProperty('--terracotta', '#D2691E');
